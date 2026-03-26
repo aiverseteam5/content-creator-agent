@@ -4,6 +4,11 @@ from __future__ import annotations
 
 import time
 
+try:
+    import voyageai
+except ImportError:
+    voyageai = None  # type: ignore[assignment]
+
 from agent.core.config import get_settings
 from agent.core.logging import get_logger
 
@@ -17,7 +22,6 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
     """Embed a list of document strings. Returns one vector per text."""
     if not texts:
         return []
-    import voyageai
 
     settings = get_settings()
     client = voyageai.Client(api_key=settings.voyage_api_key)
@@ -40,8 +44,6 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
 
 def embed_query(query: str) -> list[float]:
     """Embed a single query string for retrieval."""
-    import voyageai
-
     settings = get_settings()
     client = voyageai.Client(api_key=settings.voyage_api_key)
     result = client.embed([query], model=_MODEL, input_type="query")

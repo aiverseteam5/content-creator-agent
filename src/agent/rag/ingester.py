@@ -6,6 +6,13 @@ import re
 from dataclasses import dataclass
 from typing import Optional
 
+import httpx
+
+try:
+    from pypdf import PdfReader
+except ImportError:
+    PdfReader = None  # type: ignore[assignment,misc]
+
 from agent.core.logging import get_logger
 from agent.rag.chunker import chunk_text
 from agent.rag.embedder import embed_texts
@@ -82,8 +89,6 @@ def ingest_url(url: str) -> IngestResult:
 
 def _fetch_content(url: str) -> tuple[str, str]:
     """Return (plain_text, title) from a URL. Handles HTML and PDF."""
-    import httpx
-
     resp = httpx.get(url, follow_redirects=True, timeout=20.0,
                      headers={"User-Agent": "Mozilla/5.0 ContentCreatorAgent/1.0"})
     resp.raise_for_status()
@@ -114,9 +119,10 @@ def _extract_html(html: str, url: str) -> tuple[str, str]:
 def _extract_pdf(content: bytes, url: str) -> tuple[str, str]:
     """Extract text from a PDF binary using pypdf."""
     try:
-        from pypdf import PdfReader
         import io
 
+        if PdfReader is None:
+            raise ImportError("pypdf is required for PDF ingestion. Run: pip install pypdf")
         reader = PdfReader(io.BytesIO(content))
         pages = []
         for page in reader.pages:
@@ -127,7 +133,7 @@ def _extract_pdf(content: bytes, url: str) -> tuple[str, str]:
         title = reader.metadata.title if (reader.metadata and reader.metadata.title) else url.split("/")[-1]
         return text, title
     except ImportError:
-        raise ImportError("pypdf is required for PDF ingestion. Run: pip install pypdf")
+        raise
 
 
 # ---------------------------------------------------------------------------

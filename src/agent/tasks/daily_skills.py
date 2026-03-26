@@ -8,6 +8,7 @@ from datetime import date
 
 import redis as redis_lib
 
+from agent.core.config import get_settings
 from agent.core.logging import get_logger
 from agent.tasks.celery_app import celery_app
 
@@ -117,7 +118,6 @@ def run_scheduled_skill(self, skill_name: str, context: dict | None = None) -> d
         logger.warning("redis_idempotency_check_failed", error=str(exc))
 
     # 3. Budget guard
-    from agent.core.config import get_settings
     settings = get_settings()
     budget = getattr(settings, "daily_api_budget_usd", 2.00)
     current_spend = _get_spend_usd()
@@ -188,7 +188,6 @@ def set_emergency_stop(stop: bool = True) -> dict:
 @celery_app.task(name="agent.tasks.daily_skills.get_budget_status")
 def get_budget_status() -> dict:
     """Return today's spend vs budget — used by Slack /agent budget command."""
-    from agent.core.config import get_settings
     settings = get_settings()
     budget = getattr(settings, "daily_api_budget_usd", 2.00)
     spend = _get_spend_usd()
