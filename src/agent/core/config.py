@@ -92,6 +92,9 @@ class Settings(BaseSettings):
     reddit_client_secret: str = ""
     reddit_user_agent: str = "content-creator-agent/1.0"
 
+    # --- Web Search ---
+    tavily_api_key: str = ""
+
     # --- Embeddings ---
     voyage_api_key: str = ""
 
