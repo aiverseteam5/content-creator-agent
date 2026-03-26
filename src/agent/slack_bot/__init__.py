@@ -21,8 +21,8 @@ _approval_lock = threading.Lock()
 # ---------------------------------------------------------------------------
 # Skill command parser
 # ---------------------------------------------------------------------------
-# Matches: "skill trend_scan", "/agent skill write_post topic=NVIDIA GTC"
-_SKILL_RE = re.compile(r"(?:/agent\s+)?skill\s+(\w+)(.*)", re.IGNORECASE)
+# Matches: "skill trend_scan", "skills trend_scan", "/agent skill write_post topic=NVIDIA GTC"
+_SKILL_RE = re.compile(r"(?:/agent\s+)?skills?\s+(\w+)(.*)", re.IGNORECASE)
 
 
 def _parse_skill_command(text: str) -> tuple[str, dict] | None:
@@ -78,7 +78,7 @@ def _list_skills_message() -> str:
 # Emergency stop / budget commands
 # ---------------------------------------------------------------------------
 _AGENT_CMD_RE = re.compile(
-    r"(?:/agent\s+)(stop|resume|budget)",
+    r"(?:/?agent\s+)(stop|resume|budget)",
     re.IGNORECASE,
 )
 
@@ -120,7 +120,7 @@ def _handle_agent_command(cmd: str, say) -> None:  # type: ignore[type-arg]
 # ---------------------------------------------------------------------------
 # RAG document commands  (/agent upload <url> | /agent docs | /agent forget <id>)
 # ---------------------------------------------------------------------------
-_RAG_UPLOAD_RE = re.compile(r"(?:/agent\s+)?upload\s+(https?://\S+)", re.IGNORECASE)
+_RAG_UPLOAD_RE = re.compile(r"(?:/agent\s+)?upload\s+<?(https?://[^|>\s]+)[|>]?", re.IGNORECASE)
 _RAG_DOCS_RE = re.compile(r"(?:/agent\s+)?docs\b", re.IGNORECASE)
 _RAG_FORGET_RE = re.compile(r"(?:/agent\s+)?forget\s+([0-9a-f\-]{36})", re.IGNORECASE)
 
@@ -339,11 +339,15 @@ def create_slack_app() -> App:
         logger.info("slack_message_received", user=user, channel=channel, text=text)
 
         original_text = event.get("text", "")
+        # Strip code-block and inline backtick formatting Slack may pass through
+        original_text = re.sub(r"```(.+?)```", r"\1", original_text, flags=re.DOTALL).strip()
+        original_text = re.sub(r"`([^`]+)`", r"\1", original_text).strip()
 
         # --- /agent upload <url> ---
         upload_match = _RAG_UPLOAD_RE.search(original_text)
         if upload_match:
-            threading.Thread(target=_handle_rag_upload, args=(upload_match.group(1), say), daemon=True).start()
+            url = upload_match.group(1).strip()
+            threading.Thread(target=_handle_rag_upload, args=(url, say), daemon=True).start()
 
         # --- /agent docs ---
         elif _RAG_DOCS_RE.search(original_text):
@@ -380,13 +384,13 @@ def create_slack_app() -> App:
                 "• *skill daily_review* — view yesterday's post performance\n"
                 "• *skills* — list all available skills\n"
                 "*Knowledge base (RAG)*\n"
-                "• */agent upload https://...* — ingest a URL or PDF into the knowledge base\n"
-                "• */agent docs* — list all ingested documents\n"
-                "• */agent forget <doc-id>* — remove a document\n"
+                "• *upload https://...* — ingest a URL or PDF into the knowledge base\n"
+                "• *docs* — list all ingested documents\n"
+                "• *forget <doc-id>* — remove a document\n"
                 "*Controls*\n"
-                "• */agent stop* — pause all scheduled skills :stop_sign:\n"
-                "• */agent resume* — resume scheduled skills\n"
-                "• */agent budget* — check today's API spend"
+                "• *agent stop* — pause all scheduled skills :stop_sign:\n"
+                "• *agent resume* — resume scheduled skills\n"
+                "• *agent budget* — check today's API spend"
             )
 
     @app.event("app_mention")
