@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-type-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv pip install --system -e ".[dev]"
+
+      - name: Lint with ruff
+        run: ruff check src/ tests/
+
+      - name: Format check with ruff
+        run: ruff format --check src/ tests/
+
+      - name: Type check with mypy
+        run: mypy src/agent/ --ignore-missing-imports
+
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: content_agent_test
+          POSTGRES_USER: agent
+          POSTGRES_PASSWORD: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U agent -d content_agent_test"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv pip install --system -e ".[dev]"
+
+      - name: Run tests
+        env:
+          DATABASE_URL: postgresql+asyncpg://agent:test@localhost:5432/content_agent_test
+          REDIS_URL: redis://localhost:6379/0
+          ENVIRONMENT: testing
+          ANTHROPIC_API_KEY: test-key
+        run: pytest tests/ -v --cov=agent --cov-report=xml
+
+      - name: Upload coverage
+        if: github.event_name == 'pull_request'
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml

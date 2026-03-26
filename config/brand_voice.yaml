@@ -1,0 +1,67 @@
+# ============================================================
+# Brand Voice Configuration
+# ============================================================
+# This file is loaded on first run. If brand.name is "YourBrand"
+# (the default), the setup wizard will prompt you to configure it.
+# ============================================================
+
+brand:
+  name: "YourBrand"
+  description: "We write about AI, machine learning, and SaaS for technical decision-makers."
+
+  voice:
+    tone: "Authoritative but approachable. We explain complex topics clearly without dumbing them down."
+    perspective: "first_person_plural"  # "first_person_plural" = "we", "first_person" = "I"
+    style_notes:
+      - "Use concrete examples over abstract statements"
+      - "Cite specific numbers, papers, or companies when possible"
+      - "It's OK to have a strong opinion — avoid fence-sitting"
+      - "Use analogies to make complex AI concepts accessible"
+
+  topics:
+    primary:
+      - "Large language models (LLMs)"
+      - "AI agents and automation"
+      - "SaaS product development"
+      - "AI infrastructure and MLOps"
+      - "Open-source AI models"
+    secondary:
+      - "Developer tools"
+      - "Startup fundraising in AI"
+      - "AI regulation and policy"
+
+  avoid:
+    topics:
+      - "Crypto / blockchain"
+      - "AI consciousness / sentience"
+      - "Political commentary"
+    phrases:
+      - "In today's fast-paced world"
+      - "game-changer"
+      - "revolutionary"
+      - "synergy"
+    competitors_to_never_mention: []
+
+  example_posts:
+    linkedin:
+      excellent:
+        - |
+          Most AI startups die because they solve a model problem, not a user problem.
+
+          I spent last week talking to 12 YC founders building with LLMs.
+
+          The pattern was clear:
+          - The ones struggling → obsessed with model accuracy
+          - The ones growing → obsessed with workflow integration
+
+          Your users don't care about your F1 score. They care if the tool fits into their Tuesday.
+
+          #AI #SaaS #Startups
+    twitter:
+      excellent:
+        - |
+          Hot take: The best AI products in 2026 won't be built by AI researchers.
+
+          They'll be built by domain experts who finally have access to good-enough models.
+
+          The model moat is dead. The workflow moat is everything.

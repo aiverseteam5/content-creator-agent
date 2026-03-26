@@ -1,0 +1,60 @@
+# ============================================================
+# Research Sources Configuration
+# ============================================================
+
+rss_feeds:
+  - name: "TechCrunch AI"
+    url: "https://techcrunch.com/category/artificial-intelligence/feed/"
+  - name: "The Verge AI"
+    url: "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml"
+  - name: "Hacker News Best"
+    url: "https://hnrss.org/best?q=AI+OR+LLM+OR+SaaS&points=100"
+  - name: "MIT Tech Review AI"
+    url: "https://www.technologyreview.com/topic/artificial-intelligence/feed"
+  - name: "OpenAI Blog"
+    url: "https://openai.com/blog/rss.xml"
+  - name: "Anthropic News"
+    url: "https://www.anthropic.com/rss.xml"
+  - name: "Google AI Blog"
+    url: "https://blog.google/technology/ai/rss/"
+  - name: "Ars Technica AI"
+    url: "https://feeds.arstechnica.com/arstechnica/technology-lab"
+  - name: "VentureBeat AI"
+    url: "https://venturebeat.com/category/ai/feed/"
+  - name: "Hugging Face Blog"
+    url: "https://huggingface.co/blog/feed.xml"
+  - name: "AI News"
+    url: "https://buttondown.email/ainews/rss"
+  - name: "Towards Data Science"
+    url: "https://towardsdatascience.com/feed"
+  - name: "The Batch (deeplearning.ai)"
+    url: "https://www.deeplearning.ai/the-batch/feed/"
+  - name: "SaaStr"
+    url: "https://www.saastr.com/feed/"
+  - name: "a16z AI"
+    url: "https://a16z.com/category/ai/feed/"
+
+reddit:
+  subreddits:
+    - "MachineLearning"
+    - "artificial"
+    - "SaaS"
+    - "technology"
+    - "LocalLLaMA"
+  min_score: 100
+  max_age_hours: 24
+
+arxiv:
+  categories:
+    - "cs.AI"
+    - "cs.CL"
+    - "cs.LG"
+  max_results: 20
+
+google_news:
+  queries:
+    - "artificial intelligence"
+    - "large language models"
+    - "SaaS startup"
+    - "AI funding"
+    - "generative AI"

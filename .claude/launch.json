@@ -1,0 +1,23 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "FastAPI Dev Server",
+      "runtimeExecutable": "uv",
+      "runtimeArgs": ["run", "uvicorn", "agent.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"],
+      "port": 8000
+    },
+    {
+      "name": "Celery Worker",
+      "runtimeExecutable": "uv",
+      "runtimeArgs": ["run", "celery", "-A", "agent.tasks.celery_app", "worker", "--loglevel=info", "--concurrency=4"],
+      "port": null
+    },
+    {
+      "name": "Celery Beat Scheduler",
+      "runtimeExecutable": "uv",
+      "runtimeArgs": ["run", "celery", "-A", "agent.tasks.celery_app", "beat", "--loglevel=info"],
+      "port": null
+    }
+  ]
+}

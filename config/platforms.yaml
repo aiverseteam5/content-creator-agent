@@ -1,0 +1,30 @@
+# ============================================================
+# Platform Configuration
+# ============================================================
+
+linkedin:
+  enabled: true
+  max_posts_per_day: 1
+  content_types: ["post"]
+  optimal_hours_utc: [3, 4, 5]         # 8:30-10:30 AM IST → ~3-5 UTC
+  optimal_days: [1, 2, 3]              # Tue, Wed, Thu (0=Monday)
+  max_length: 1300
+  min_length: 600
+  hashtag_count: [3, 5]                # [min, max]
+
+twitter:
+  enabled: true
+  max_posts_per_day: 3
+  content_types: ["tweet", "thread"]
+  optimal_hours_utc: [6, 7, 12, 13]    # 12-1 PM IST & 6-7 PM IST → ~6-7 & 12-13 UTC
+  optimal_days: [0, 1, 2, 3, 4]        # Mon-Fri
+  max_length: 280                       # Per tweet
+  thread_max_tweets: 5
+  hashtag_count: [1, 2]
+
+# --- Phase 2 (disabled) ---
+facebook:
+  enabled: false
+
+youtube:
+  enabled: false
