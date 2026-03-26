@@ -13,6 +13,7 @@ from agent.core.config import get_sources_config
 from agent.core.logging import get_logger
 from agent.sources.normalizer import normalize
 from agent.sources.protocol import ContentSource
+from agent.sources.rag_source import search_rag
 from agent.sources.web_search import build_queries, search_web
 
 logger = get_logger(__name__)
@@ -120,6 +121,12 @@ def fetch_articles(topic: str | None = None, max_total: int = 5) -> list[Article
     web_results = search_web(queries, max_results_per_query=3)
     all_sources.extend(web_results)
     logger.info("web_search_results", count=len(web_results), topic=topic or "general")
+
+    # --- RAG: knowledge-base retrieval (when topic is given) ---
+    if topic:
+        rag_results = search_rag(topic, top_k=3)
+        all_sources.extend(rag_results)
+        logger.info("rag_results", count=len(rag_results), topic=topic)
 
     # --- Fallback: RSS (always run, supplements web search) ---
     rss_results = _fetch_rss_sources(per_feed=2)

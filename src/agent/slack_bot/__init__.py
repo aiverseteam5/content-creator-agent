@@ -117,6 +117,61 @@ def _handle_agent_command(cmd: str, say) -> None:  # type: ignore[type-arg]
             say(f":x: Could not fetch budget: `{exc}`")
 
 
+# ---------------------------------------------------------------------------
+# RAG document commands  (/agent upload <url> | /agent docs | /agent forget <id>)
+# ---------------------------------------------------------------------------
+_RAG_UPLOAD_RE = re.compile(r"(?:/agent\s+)?upload\s+(https?://\S+)", re.IGNORECASE)
+_RAG_DOCS_RE = re.compile(r"(?:/agent\s+)?docs\b", re.IGNORECASE)
+_RAG_FORGET_RE = re.compile(r"(?:/agent\s+)?forget\s+([0-9a-f\-]{36})", re.IGNORECASE)
+
+
+def _handle_rag_upload(url: str, say) -> None:  # type: ignore[type-arg]
+    say(f":inbox_tray: Ingesting <{url}|{url.split('/')[-1]}>… this may take a moment.")
+    try:
+        from agent.rag import ingest_url
+        result = ingest_url(url)
+        say(result.message)
+    except Exception as exc:
+        say(f":x: Ingestion error: `{exc}`")
+
+
+def _handle_rag_docs(say) -> None:  # type: ignore[type-arg]
+    try:
+        from agent.rag import list_docs
+        docs = list_docs()
+    except Exception as exc:
+        say(f":x: Could not list docs: `{exc}`")
+        return
+
+    if not docs:
+        say(":books: Knowledge base is empty. Use `/agent upload <url>` to add documents.")
+        return
+
+    lines = [f":books: *Knowledge Base — {len(docs)} document{'s' if len(docs) != 1 else ''}*\n"]
+    for d in docs:
+        date_str = (d["created_at"] or "")[:10]
+        url_part = f" | <{d['source_url']}|link>" if d["source_url"] else ""
+        lines.append(
+            f"• *{d['title'][:60]}*{url_part}\n"
+            f"  `{d['id']}` — {d['chunk_count']} chunks — {date_str}"
+        )
+    say("\n".join(lines))
+
+
+def _handle_rag_forget(doc_id: str, say) -> None:  # type: ignore[type-arg]
+    try:
+        from agent.rag import delete_doc
+        deleted = delete_doc(doc_id)
+    except Exception as exc:
+        say(f":x: Error: `{exc}`")
+        return
+
+    if deleted:
+        say(f":wastebasket: Document `{doc_id}` deleted from knowledge base.")
+    else:
+        say(f":warning: No document found with id `{doc_id}`.")
+
+
 TRIGGER_KEYWORDS = ("research", "post", "create", "generate", "news", "ai news", "write", "about", "highlights")
 
 # Words to strip when extracting the topic from the user's message
@@ -285,9 +340,21 @@ def create_slack_app() -> App:
 
         original_text = event.get("text", "")
 
+        # --- /agent upload <url> ---
+        upload_match = _RAG_UPLOAD_RE.search(original_text)
+        if upload_match:
+            threading.Thread(target=_handle_rag_upload, args=(upload_match.group(1), say), daemon=True).start()
+
+        # --- /agent docs ---
+        elif _RAG_DOCS_RE.search(original_text):
+            threading.Thread(target=_handle_rag_docs, args=(say,), daemon=True).start()
+
+        # --- /agent forget <id> ---
+        elif forget_match := _RAG_FORGET_RE.search(original_text):
+            threading.Thread(target=_handle_rag_forget, args=(forget_match.group(1), say), daemon=True).start()
+
         # --- /agent stop | resume | budget ---
-        agent_cmd_match = _AGENT_CMD_RE.search(original_text)
-        if agent_cmd_match:
+        elif agent_cmd_match := _AGENT_CMD_RE.search(original_text):
             _handle_agent_command(agent_cmd_match.group(1), say)
 
         # --- Skill command: "skill trend_scan" / "/agent skill write_post topic=X" ---
@@ -306,11 +373,17 @@ def create_slack_app() -> App:
         else:
             say(
                 f"Hi <@{user}>! Here's what I can do:\n"
+                "*Content pipeline*\n"
                 "• *research AI news and post* — generate + publish content\n"
                 "• *skill trend_scan* — scan for trending topics\n"
                 "• *skill write_post topic=NVIDIA GTC* — draft a post on a specific topic\n"
                 "• *skill daily_review* — view yesterday's post performance\n"
                 "• *skills* — list all available skills\n"
+                "*Knowledge base (RAG)*\n"
+                "• */agent upload https://...* — ingest a URL or PDF into the knowledge base\n"
+                "• */agent docs* — list all ingested documents\n"
+                "• */agent forget <doc-id>* — remove a document\n"
+                "*Controls*\n"
                 "• */agent stop* — pause all scheduled skills :stop_sign:\n"
                 "• */agent resume* — resume scheduled skills\n"
                 "• */agent budget* — check today's API spend"

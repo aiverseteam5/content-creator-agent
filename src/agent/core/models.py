@@ -11,6 +11,7 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     Float,
+    ForeignKey,
     Index,
     Integer,
     String,
@@ -164,3 +165,68 @@ class BrandConfig(Base):
 
     def __repr__(self) -> str:
         return f"<BrandConfig(id={self.id}, version={self.version}, active={self.active})>"
+
+
+# ---------------------------------------------------------------------------
+# F12: RAG Knowledge Base
+# ---------------------------------------------------------------------------
+
+class KnowledgeDoc(Base):
+    """A document ingested into the RAG knowledge base."""
+
+    __tablename__ = "knowledge_docs"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    source_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True, unique=True)
+    source_type: Mapped[str] = mapped_column(String(20), default="url")  # "url" | "pdf" | "text"
+    chunk_count: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    chunks: Mapped[list["KnowledgeChunk"]] = relationship(
+        back_populates="doc", cascade="all, delete-orphan"
+    )
+
+    def __repr__(self) -> str:
+        return f"<KnowledgeDoc(id={self.id}, title={self.title[:40]}, chunks={self.chunk_count})>"
+
+
+class KnowledgeChunk(Base):
+    """A single text chunk from a KnowledgeDoc, with its Voyage AI embedding."""
+
+    __tablename__ = "knowledge_chunks"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    doc_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("knowledge_docs.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    embedding = mapped_column(Vector(1024), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    doc: Mapped["KnowledgeDoc"] = relationship(back_populates="chunks")
+
+    __table_args__ = (
+        Index("idx_chunks_doc_id", "doc_id"),
+        Index(
+            "idx_chunks_embedding_hnsw",
+            "embedding",
+            postgresql_using="hnsw",
+            postgresql_with={"m": 16, "ef_construction": 64},
+            postgresql_ops={"embedding": "vector_cosine_ops"},
+        ),
+    )
+
+    def __repr__(self) -> str:
+        return f"<KnowledgeChunk(id={self.id}, doc_id={self.doc_id}, idx={self.chunk_index})>"

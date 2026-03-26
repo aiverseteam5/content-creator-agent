@@ -21,6 +21,8 @@ from agent.core.models import (  # noqa: F401 — import so models register with
     BrandConfig,
     ContentItem,
     ContentSignal,
+    KnowledgeChunk,
+    KnowledgeDoc,
     PostPerformance,
 )
 

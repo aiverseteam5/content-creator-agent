@@ -34,9 +34,10 @@ dependencies = [
     # === Social Publishing ===
     "tweepy>=4.14.0",
 
-    # === Vector / Embeddings ===
+    # === Vector / Embeddings / RAG ===
     "pgvector>=0.3.6",
     "voyageai>=0.3.0",
+    "pypdf>=4.0.0",
 
     # === Utilities ===
     "pyyaml>=6.0.2",
