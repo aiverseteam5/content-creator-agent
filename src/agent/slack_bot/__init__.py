@@ -1,7 +1,8 @@
-"""Slack bot: receives commands, runs pipeline in background, handles approval."""
+"""Slack bot: receives commands, runs pipeline and skills in background, handles approval."""
 
 from __future__ import annotations
 
+import re
 import threading
 
 from slack_bolt import App
@@ -16,6 +17,62 @@ logger = get_logger(__name__)
 # In-memory store: Slack message ts -> list of GeneratedPost pending approval
 _pending_approvals: dict[str, list[GeneratedPost]] = {}
 _approval_lock = threading.Lock()
+
+# ---------------------------------------------------------------------------
+# Skill command parser
+# ---------------------------------------------------------------------------
+# Matches: "skill trend_scan", "/agent skill write_post topic=NVIDIA GTC"
+_SKILL_RE = re.compile(r"(?:/agent\s+)?skill\s+(\w+)(.*)", re.IGNORECASE)
+
+
+def _parse_skill_command(text: str) -> tuple[str, dict] | None:
+    """Return (skill_name, context) if text is a skill command, else None."""
+    m = _SKILL_RE.search(text)
+    if not m:
+        return None
+    skill_name = m.group(1).strip()
+    remainder = m.group(2).strip()
+    # Parse optional topic= or bare topic after skill name
+    context: dict = {}
+    topic_match = re.search(r"topic[=:]\s*(.+)", remainder, re.IGNORECASE)
+    if topic_match:
+        context["topic"] = topic_match.group(1).strip().strip('"\'')
+    elif remainder:
+        context["topic"] = remainder.strip().strip('"\'')
+    return skill_name, context
+
+
+def _run_skill(skill_name: str, context: dict, say) -> None:  # type: ignore[type-arg]
+    """Execute a skill in a background thread and post results to Slack."""
+    from agent.skills.registry import execute_skill
+
+    say(f":gear: Running skill `{skill_name}`…")
+    result = execute_skill(skill_name, context)
+
+    if result.next_action == "await_approval":
+        # write_post skill: use the existing approval flow
+        posts = result.output.get("posts", [])
+        articles = result.output.get("articles", [])
+        if posts:
+            blocks = _build_approval_blocks(posts, articles)
+            preview_resp = say(blocks=blocks, text="Content ready for approval")
+            preview_ts: str = preview_resp.get("ts", "")
+            with _approval_lock:
+                _pending_approvals[preview_ts] = posts
+            logger.info("skill_approval_pending", skill=skill_name, ts=preview_ts)
+        else:
+            say(result.message)
+    else:
+        say(result.message)
+
+
+def _list_skills_message() -> str:
+    from agent.skills.registry import list_skills
+    lines = [":robot_face: *Available skills:*"]
+    for s in list_skills():
+        lines.append(f"• `skill {s.name}` — {s.description}")
+    lines.append("\n_Usage: `skill <name>` or `skill <name> topic=<your topic>`_")
+    return "\n".join(lines)
 
 TRIGGER_KEYWORDS = ("research", "post", "create", "generate", "news", "ai news", "write", "about", "highlights")
 
@@ -32,8 +89,6 @@ _STRIP_PHRASES = (
     "news on", "news from", "news about",
     "tomorrow", "today", "tonight", "scheduled", "schedule",
 )
-
-import re  # noqa: E402
 
 _SCHEDULE_RE = re.compile(
     r"(tomorrow|today|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday)"
@@ -185,13 +240,29 @@ def create_slack_app() -> App:
 
         logger.info("slack_message_received", user=user, channel=channel, text=text)
 
-        if any(kw in text for kw in TRIGGER_KEYWORDS):
-            original_text = event.get("text", "")
+        original_text = event.get("text", "")
+
+        # --- Skill command: "skill trend_scan" / "/agent skill write_post topic=X" ---
+        skill_cmd = _parse_skill_command(original_text)
+        if skill_cmd:
+            skill_name, context = skill_cmd
+            threading.Thread(target=_run_skill, args=(skill_name, context, say), daemon=True).start()
+
+        # --- Help: "skills" or "/agent skills" ---
+        elif re.search(r"(?:/agent\s+)?skills$", original_text.strip(), re.IGNORECASE):
+            say(_list_skills_message())
+
+        # --- Standard pipeline trigger ---
+        elif any(kw in text for kw in TRIGGER_KEYWORDS):
             threading.Thread(target=_run_pipeline, args=(say, original_text), daemon=True).start()
+
         else:
             say(
-                f"Hi <@{user}>! Send a message like *research AI news and post* or "
-                "*post about NVIDIA GTC highlights* to start the pipeline."
+                f"Hi <@{user}>! Here's what I can do:\n"
+                "• *research AI news and post* — generate + publish content\n"
+                "• *skill trend_scan* — scan for trending topics\n"
+                "• *skill write_post topic=NVIDIA GTC* — draft a post on a specific topic\n"
+                "• *skills* — list all available skills"
             )
 
     @app.event("app_mention")
