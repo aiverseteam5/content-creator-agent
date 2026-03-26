@@ -70,6 +70,7 @@ class ContentItem(Base):
     )
     signal_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True),
+        ForeignKey("content_signals.id", ondelete="SET NULL"),
         nullable=True,
     )
     platform: Mapped[str] = mapped_column(String(20), nullable=False)
@@ -123,6 +124,7 @@ class PostPerformance(Base):
     )
     content_item_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
+        ForeignKey("content_items.id", ondelete="CASCADE"),
         nullable=False,
     )
     platform: Mapped[str] = mapped_column(String(20), nullable=False)

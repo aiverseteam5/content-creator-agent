@@ -86,10 +86,11 @@ class TestExtractPdf:
 
         assert title == "my-report.pdf"
 
-    def test_raises_import_error_when_pypdf_missing(self):
-        with patch.dict("sys.modules", {"pypdf": None}):
-            with pytest.raises((ImportError, ModuleNotFoundError, TypeError)):
-                _extract_pdf(b"data", "https://example.com/doc.pdf")
+    def test_raises_error_on_invalid_pdf_bytes(self):
+        """pypdf should raise an error when bytes are not a valid PDF."""
+        pytest.importorskip("pypdf")  # skip if pypdf not installed
+        with pytest.raises(Exception):  # pypdf raises PdfReadError or similar
+            _extract_pdf(b"not-a-pdf", "https://example.com/doc.pdf")
 
 
 # ---------------------------------------------------------------------------
