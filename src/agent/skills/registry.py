@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from agent.core.logging import get_logger
 from agent.skills.base import Skill, SkillResult
+from agent.skills.daily_review import DailyReviewSkill
 from agent.skills.trend_scan import TrendScanSkill
 from agent.skills.write_post import WritePostSkill
 
@@ -13,6 +14,7 @@ logger = get_logger(__name__)
 _SKILLS: list[Skill] = [
     TrendScanSkill(),
     WritePostSkill(),
+    DailyReviewSkill(),
 ]
 
 _REGISTRY: dict[str, Skill] = {s.name: s for s in _SKILLS}

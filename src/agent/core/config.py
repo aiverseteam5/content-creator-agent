@@ -103,6 +103,9 @@ class Settings(BaseSettings):
     analytics_delay_hours: int = 24
     user_timezone: str = "Asia/Kolkata"
 
+    # --- Daily skill budget (F15) ---
+    daily_api_budget_usd: float = Field(default=2.00, description="Max OpenAI spend per day in USD")
+
     # --- App ---
     log_level: str = "INFO"
     environment: str = "development"

@@ -74,6 +74,49 @@ def _list_skills_message() -> str:
     lines.append("\n_Usage: `skill <name>` or `skill <name> topic=<your topic>`_")
     return "\n".join(lines)
 
+# ---------------------------------------------------------------------------
+# Emergency stop / budget commands
+# ---------------------------------------------------------------------------
+_AGENT_CMD_RE = re.compile(
+    r"(?:/agent\s+)(stop|resume|budget)",
+    re.IGNORECASE,
+)
+
+
+def _handle_agent_command(cmd: str, say) -> None:  # type: ignore[type-arg]
+    """Handle /agent stop|resume|budget commands."""
+    cmd = cmd.lower()
+    if cmd == "stop":
+        try:
+            from agent.tasks.daily_skills import set_emergency_stop
+            set_emergency_stop.delay(True)
+            say(":stop_sign: *Emergency stop activated.* Scheduled skills are paused until `/agent resume`.")
+        except Exception as exc:
+            say(f":x: Could not set stop flag: `{exc}`")
+    elif cmd == "resume":
+        try:
+            from agent.tasks.daily_skills import set_emergency_stop
+            set_emergency_stop.delay(False)
+            say(":white_check_mark: *Emergency stop cleared.* Scheduled skills will resume on the next cycle.")
+        except Exception as exc:
+            say(f":x: Could not clear stop flag: `{exc}`")
+    elif cmd == "budget":
+        try:
+            from agent.tasks.daily_skills import get_budget_status
+            status = get_budget_status()
+            pct = status["pct_used"]
+            bar = "█" * int(pct / 10) + "░" * (10 - int(pct / 10))
+            stopped_note = "  :stop_sign: *STOPPED*" if status["emergency_stop"] else ""
+            say(
+                f":moneybag: *Daily API Budget*{stopped_note}\n"
+                f"`{bar}` {pct:.1f}%\n"
+                f"Spent: *${status['spend_usd']:.3f}*  /  Budget: *${status['budget_usd']:.2f}*  "
+                f"(${status['remaining_usd']:.3f} remaining)"
+            )
+        except Exception as exc:
+            say(f":x: Could not fetch budget: `{exc}`")
+
+
 TRIGGER_KEYWORDS = ("research", "post", "create", "generate", "news", "ai news", "write", "about", "highlights")
 
 # Words to strip when extracting the topic from the user's message
@@ -242,9 +285,13 @@ def create_slack_app() -> App:
 
         original_text = event.get("text", "")
 
+        # --- /agent stop | resume | budget ---
+        agent_cmd_match = _AGENT_CMD_RE.search(original_text)
+        if agent_cmd_match:
+            _handle_agent_command(agent_cmd_match.group(1), say)
+
         # --- Skill command: "skill trend_scan" / "/agent skill write_post topic=X" ---
-        skill_cmd = _parse_skill_command(original_text)
-        if skill_cmd:
+        elif skill_cmd := _parse_skill_command(original_text):
             skill_name, context = skill_cmd
             threading.Thread(target=_run_skill, args=(skill_name, context, say), daemon=True).start()
 
@@ -262,7 +309,11 @@ def create_slack_app() -> App:
                 "• *research AI news and post* — generate + publish content\n"
                 "• *skill trend_scan* — scan for trending topics\n"
                 "• *skill write_post topic=NVIDIA GTC* — draft a post on a specific topic\n"
-                "• *skills* — list all available skills"
+                "• *skill daily_review* — view yesterday's post performance\n"
+                "• *skills* — list all available skills\n"
+                "• */agent stop* — pause all scheduled skills :stop_sign:\n"
+                "• */agent resume* — resume scheduled skills\n"
+                "• */agent budget* — check today's API spend"
             )
 
     @app.event("app_mention")
