@@ -6,6 +6,7 @@ import time
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
+from datetime import UTC
 
 import feedparser
 
@@ -48,7 +49,8 @@ def _content_source_to_article(cs: ContentSource) -> ArticleResult:
 # RSS (fallback)
 # ---------------------------------------------------------------------------
 def _fetch_one_feed(name: str, url: str, per_feed: int) -> list[ContentSource]:
-    from datetime import datetime, timezone
+    from datetime import datetime
+
     try:
         with urllib.request.urlopen(url, timeout=FEED_TIMEOUT) as resp:
             content = resp.read()
@@ -59,21 +61,19 @@ def _fetch_one_feed(name: str, url: str, per_feed: int) -> list[ContentSource]:
 
     results = []
     for entry in parsed.entries[:per_feed]:
-        pub_ts: float = (
-            time.mktime(entry.published_parsed)
-            if getattr(entry, "published_parsed", None)
-            else time.time()
-        )
+        pub_ts: float = time.mktime(entry.published_parsed) if getattr(entry, "published_parsed", None) else time.time()
         summary = (entry.get("summary", "") or entry.get("description", ""))[:500]
-        results.append(ContentSource(
-            source_type="rss",
-            title=entry.get("title", "(no title)"),
-            summary=summary,
-            url=entry.get("link", ""),
-            relevance_score=0.6,
-            freshness=datetime.fromtimestamp(pub_ts, tz=timezone.utc),
-            metadata={"feed": name},
-        ))
+        results.append(
+            ContentSource(
+                source_type="rss",
+                title=entry.get("title", "(no title)"),
+                summary=summary,
+                url=entry.get("link", ""),
+                relevance_score=0.6,
+                freshness=datetime.fromtimestamp(pub_ts, tz=UTC),
+                metadata={"feed": name},
+            )
+        )
     return results
 
 
@@ -85,7 +85,8 @@ def _fetch_rss_sources(per_feed: int = 2) -> list[ContentSource]:
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         futures = {
             executor.submit(_fetch_one_feed, f.get("name", "?"), f.get("url", ""), per_feed): f
-            for f in feeds if f.get("url")
+            for f in feeds
+            if f.get("url")
         }
         for future in as_completed(futures, timeout=FEED_TIMEOUT + 2):
             try:

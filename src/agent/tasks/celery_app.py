@@ -21,24 +21,19 @@ celery_app.conf.update(
     task_serializer="json",
     accept_content=["json"],
     result_serializer="json",
-
     # Timezone
     timezone=os.environ.get("USER_TIMEZONE", "Asia/Kolkata"),
     enable_utc=True,
-
     # Task routing
     task_routes={
         "agent.tasks.research.*": {"queue": "research"},
         "agent.tasks.publish.*": {"queue": "publish"},
         "agent.tasks.analytics.*": {"queue": "analytics"},
     },
-
     # Default queue for unmatched tasks
     task_default_queue="default",
-
     # Result expiry (24 hours)
     result_expires=86400,
-
     # Worker settings
     worker_prefetch_multiplier=1,
     worker_max_tasks_per_child=100,
@@ -66,16 +61,13 @@ celery_app.conf.beat_schedule = {
         "task": "agent.tasks.research.send_daily_briefing",
         "schedule": crontab(minute=30, hour=2),  # 2:30 UTC = 8:00 IST
     },
-
     # F15: Daily Autonomous Schedule -------------------------------------------
-
     # Morning performance review at 8:00 AM IST (2:30 AM UTC)
     "daily-review-skill": {
         "task": "agent.tasks.daily_skills.run_scheduled_skill",
-        "schedule": crontab(minute=30, hour=2),   # 2:30 UTC = 8:00 IST
+        "schedule": crontab(minute=30, hour=2),  # 2:30 UTC = 8:00 IST
         "kwargs": {"skill_name": "daily_review", "context": {}},
     },
-
     # Mid-morning trend scan at 9:30 AM IST (4:00 AM UTC) Mon–Fri
     "morning-trend-scan": {
         "task": "agent.tasks.daily_skills.run_scheduled_skill",

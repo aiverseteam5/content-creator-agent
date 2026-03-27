@@ -34,7 +34,7 @@ def setup_logging() -> None:
         renderer = structlog.dev.ConsoleRenderer(colors=True)
     else:
         # JSON output for production (Docker, log aggregators)
-        renderer = structlog.processors.JSONRenderer()
+        renderer = structlog.processors.JSONRenderer()  # type: ignore[assignment]
 
     structlog.configure(
         processors=[

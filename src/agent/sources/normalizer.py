@@ -2,18 +2,18 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from agent.sources.protocol import ContentSource
 
 
 def _freshness_score(freshness: datetime) -> float:
     """Score 0.0–1.0 based on age: 1.0 = just published, 0.0 = 7+ days old."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     if freshness.tzinfo is None:
-        freshness = freshness.replace(tzinfo=timezone.utc)
+        freshness = freshness.replace(tzinfo=UTC)
     age_hours = (now - freshness).total_seconds() / 3600
-    return max(0.0, 1.0 - age_hours / 168)   # 168 hours = 7 days
+    return max(0.0, 1.0 - age_hours / 168)  # 168 hours = 7 days
 
 
 def _combined_score(source: ContentSource) -> float:
@@ -42,9 +42,7 @@ def normalize(sources: list[ContentSource], top_k: int = 5) -> list[ContentSourc
     boosted = []
     for s in sources:
         if s.source_type == "web_search":
-            boosted.append(ContentSource(
-                **{**s.__dict__, "relevance_score": min(1.0, s.relevance_score * 1.2)}
-            ))
+            boosted.append(ContentSource(**{**s.__dict__, "relevance_score": min(1.0, s.relevance_score * 1.2)}))
         else:
             boosted.append(s)
 

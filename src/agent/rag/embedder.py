@@ -24,14 +24,14 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
         return []
 
     settings = get_settings()
-    client = voyageai.Client(api_key=settings.voyage_api_key)
+    client = voyageai.Client(api_key=settings.voyage_api_key)  # type: ignore[attr-defined]
 
     all_embeddings: list[list[float]] = []
     for i in range(0, len(texts), _BATCH_SIZE):
         batch = texts[i : i + _BATCH_SIZE]
         try:
             result = client.embed(batch, model=_MODEL, input_type="document")
-            all_embeddings.extend(result.embeddings)
+            all_embeddings.extend(result.embeddings)  # type: ignore[arg-type]
         except Exception as exc:
             logger.error("embed_texts_error", batch_start=i, error=str(exc))
             raise
@@ -45,6 +45,6 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
 def embed_query(query: str) -> list[float]:
     """Embed a single query string for retrieval."""
     settings = get_settings()
-    client = voyageai.Client(api_key=settings.voyage_api_key)
+    client = voyageai.Client(api_key=settings.voyage_api_key)  # type: ignore[attr-defined]
     result = client.embed([query], model=_MODEL, input_type="query")
-    return result.embeddings[0]
+    return result.embeddings[0]  # type: ignore[return-value]

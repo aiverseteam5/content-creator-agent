@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import httpx
 import tweepy
 
 from agent.core.config import get_settings
 from agent.core.logging import get_logger
-from agent.generators import GeneratedPost
+
+if TYPE_CHECKING:
+    from agent.generators import GeneratedPost
 
 logger = get_logger(__name__)
 
@@ -59,9 +63,7 @@ def publish_linkedin(post: GeneratedPost) -> str:
         return post_urn
     except httpx.HTTPStatusError as exc:
         logger.error("linkedin_publish_failed", status=exc.response.status_code, body=exc.response.text)
-        raise RuntimeError(
-            f"LinkedIn publish failed [{exc.response.status_code}]: {exc.response.text}"
-        ) from exc
+        raise RuntimeError(f"LinkedIn publish failed [{exc.response.status_code}]: {exc.response.text}") from exc
 
 
 def publish_all(posts: list[GeneratedPost]) -> dict[str, str]:

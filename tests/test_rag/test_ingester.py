@@ -7,16 +7,15 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from agent.rag.ingester import (
-    IngestResult,
     _extract_html,
     _extract_pdf,
     ingest_url,
 )
 
-
 # ---------------------------------------------------------------------------
 # HTML extraction
 # ---------------------------------------------------------------------------
+
 
 class TestExtractHtml:
     def test_extracts_title(self):
@@ -58,6 +57,7 @@ class TestExtractHtml:
 # PDF extraction
 # ---------------------------------------------------------------------------
 
+
 class TestExtractPdf:
     def test_extracts_text_from_pages(self):
         mock_page1 = MagicMock()
@@ -89,7 +89,8 @@ class TestExtractPdf:
     def test_raises_error_on_invalid_pdf_bytes(self):
         """pypdf should raise an error when bytes are not a valid PDF."""
         pytest.importorskip("pypdf")  # skip if pypdf not installed
-        with pytest.raises(Exception):  # pypdf raises PdfReadError or similar
+        pypdf = pytest.importorskip("pypdf")
+        with pytest.raises(pypdf.errors.PdfReadError):
             _extract_pdf(b"not-a-pdf", "https://example.com/doc.pdf")
 
 
@@ -97,11 +98,14 @@ class TestExtractPdf:
 # ingest_url — integration (all external calls mocked)
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def mock_html_response():
     resp = MagicMock()
     resp.headers = {"content-type": "text/html"}
-    resp.text = "<html><head><title>AI News</title></head><body>" + ("AI is transforming the world. " * 200) + "</body></html>"
+    resp.text = (
+        "<html><head><title>AI News</title></head><body>" + ("AI is transforming the world. " * 200) + "</body></html>"
+    )
     resp.content = b""
     resp.raise_for_status = MagicMock()
     return resp
@@ -184,6 +188,6 @@ class TestIngestUrl:
             patch("agent.rag.ingester.chunk_text", return_value=["chunk"]),
         ):
             mock_httpx.get.return_value = resp
-            result = ingest_url("https://example.com/report.pdf")
+            ingest_url("https://example.com/report.pdf")
 
         mock_pdf.assert_called_once()

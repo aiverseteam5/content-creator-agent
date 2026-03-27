@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -21,7 +21,7 @@ def sample_rows() -> list[dict]:
         {
             "platform": "linkedin",
             "body": "Excited to share insights on AI agents transforming enterprise workflows.",
-            "published_at": datetime(2026, 3, 25, 10, 0, tzinfo=timezone.utc),
+            "published_at": datetime(2026, 3, 25, 10, 0, tzinfo=UTC),
             "impressions": 1200,
             "likes": 85,
             "shares": 12,
@@ -31,7 +31,7 @@ def sample_rows() -> list[dict]:
         {
             "platform": "twitter",
             "body": "AI agents are the future of knowledge work #AI #Automation",
-            "published_at": datetime(2026, 3, 25, 10, 5, tzinfo=timezone.utc),
+            "published_at": datetime(2026, 3, 25, 10, 5, tzinfo=UTC),
             "impressions": 540,
             "likes": 34,
             "shares": 7,

@@ -3,17 +3,19 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Optional
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from datetime import datetime
 
 
 @dataclass
 class ContentSource:
-    source_type: str            # "web_search" | "rss" | "rag" | "mcp"
+    source_type: str  # "web_search" | "rss" | "rag" | "mcp"
     title: str
     summary: str
-    url: Optional[str]
-    relevance_score: float      # 0.0 – 1.0
+    url: str | None
+    relevance_score: float  # 0.0 – 1.0
     freshness: datetime
-    full_text: Optional[str] = None
-    metadata: dict = field(default_factory=dict)   # source-specific extras
+    full_text: str | None = None
+    metadata: dict = field(default_factory=dict)  # source-specific extras

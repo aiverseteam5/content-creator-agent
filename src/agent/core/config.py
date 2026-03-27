@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-import yaml
+import yaml  # type: ignore[import-untyped]
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -38,7 +37,7 @@ def _load_yaml(filename: str) -> dict[str, Any]:
     filepath = config_dir / filename
     if not filepath.exists():
         raise FileNotFoundError(f"Config file not found: {filepath}")
-    with open(filepath, "r", encoding="utf-8") as f:
+    with open(filepath, encoding="utf-8") as f:
         return yaml.safe_load(f) or {}
 
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from agent.core.logging import get_logger
 from agent.sources.protocol import ContentSource
@@ -35,7 +35,7 @@ def search_rag(topic: str, top_k: int = 5) -> list[ContentSource]:
                 summary=chunk.content[:500],
                 url=chunk.source_url,
                 relevance_score=chunk.similarity,
-                freshness=datetime.now(timezone.utc),  # treat local KB as always fresh
+                freshness=datetime.now(UTC),  # treat local KB as always fresh
                 full_text=chunk.content,
                 metadata={
                     "doc_id": str(chunk.doc_id),
