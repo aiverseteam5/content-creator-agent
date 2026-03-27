@@ -66,6 +66,22 @@ celery_app.conf.beat_schedule = {
         "task": "agent.tasks.research.send_daily_briefing",
         "schedule": crontab(minute=30, hour=2),  # 2:30 UTC = 8:00 IST
     },
+
+    # F15: Daily Autonomous Schedule -------------------------------------------
+
+    # Morning performance review at 8:00 AM IST (2:30 AM UTC)
+    "daily-review-skill": {
+        "task": "agent.tasks.daily_skills.run_scheduled_skill",
+        "schedule": crontab(minute=30, hour=2),   # 2:30 UTC = 8:00 IST
+        "kwargs": {"skill_name": "daily_review", "context": {}},
+    },
+
+    # Mid-morning trend scan at 9:30 AM IST (4:00 AM UTC) Mon–Fri
+    "morning-trend-scan": {
+        "task": "agent.tasks.daily_skills.run_scheduled_skill",
+        "schedule": crontab(minute=0, hour=4, day_of_week="1-5"),  # 4:00 UTC = 9:30 IST
+        "kwargs": {"skill_name": "trend_scan", "context": {"params": {"limit": 5}}},
+    },
 }
 
 # ---------------------------------------------------------------------------

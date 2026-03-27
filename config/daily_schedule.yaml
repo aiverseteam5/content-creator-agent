@@ -1,0 +1,46 @@
+# ============================================================
+# Daily Autonomous Schedule
+# ============================================================
+# All times are in USER_TIMEZONE (default: Asia/Kolkata)
+# Cron format: minute hour day_of_month month day_of_week
+
+schedule:
+  # Morning briefing: summarise yesterday's post performance
+  daily_review:
+    enabled: true
+    cron: "0 8 * * *"          # 08:00 IST every day
+    skill: daily_review
+    context: {}
+    description: "Morning performance summary posted to Slack"
+
+  # Mid-morning trend scan: surface hot topics for the day
+  morning_trend_scan:
+    enabled: true
+    cron: "30 9 * * 1-5"       # 09:30 IST Mon–Fri
+    skill: trend_scan
+    context:
+      params:
+        limit: 5
+    description: "Trending AI/tech topics digest"
+
+  # Afternoon write_post: auto-generate a draft and send for approval
+  afternoon_post:
+    enabled: false              # Enable once trend_scan + write_post are stable
+    cron: "0 14 * * 1-5"       # 14:00 IST Mon–Fri
+    skill: write_post
+    context: {}
+    description: "Auto-draft afternoon LinkedIn + Twitter post"
+
+# Safety guardrails
+guardrails:
+  # Maximum USD spend via OpenAI per calendar day (approximate)
+  daily_api_budget_usd: 2.00
+
+  # Redis key used to track spend (resets at midnight UTC)
+  budget_redis_key: "daily_skill_spend_usd"
+
+  # Redis key for emergency stop flag (/agent stop command)
+  stop_flag_key: "agent_emergency_stop"
+
+  # Maximum retries before a scheduled skill is skipped
+  max_retries: 2

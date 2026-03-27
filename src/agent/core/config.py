@@ -92,6 +92,9 @@ class Settings(BaseSettings):
     reddit_client_secret: str = ""
     reddit_user_agent: str = "content-creator-agent/1.0"
 
+    # --- Web Search ---
+    tavily_api_key: str = ""
+
     # --- Embeddings ---
     voyage_api_key: str = ""
 
@@ -99,6 +102,9 @@ class Settings(BaseSettings):
     research_interval_hours: int = 4
     analytics_delay_hours: int = 24
     user_timezone: str = "Asia/Kolkata"
+
+    # --- Daily skill budget (F15) ---
+    daily_api_budget_usd: float = Field(default=2.00, description="Max OpenAI spend per day in USD")
 
     # --- App ---
     log_level: str = "INFO"

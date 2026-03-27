@@ -1,0 +1,30 @@
+# ============================================================
+# Skills Configuration
+# ============================================================
+
+skills:
+  trend_scan:
+    enabled: true
+    description: "Search web for trending AI/tech topics"
+    params:
+      limit: 5                  # Max results to return
+
+  write_post:
+    enabled: true
+    description: "Research topic and generate LinkedIn + Twitter drafts"
+    params: {}
+
+  daily_review:
+    enabled: false              # Enabled in F15
+    description: "Morning performance summary"
+    params: {}
+
+  weekly_planner:
+    enabled: false              # Future skill
+    description: "Plan next week's content calendar"
+    params: {}
+
+  recycle_evergreen:
+    enabled: false              # Future skill
+    description: "Refresh high-performing old content"
+    params: {}

@@ -1,7 +1,8 @@
-"""Slack bot: receives commands, runs pipeline in background, handles approval."""
+"""Slack bot: receives commands, runs pipeline and skills in background, handles approval."""
 
 from __future__ import annotations
 
+import re
 import threading
 
 from slack_bolt import App
@@ -16,6 +17,160 @@ logger = get_logger(__name__)
 # In-memory store: Slack message ts -> list of GeneratedPost pending approval
 _pending_approvals: dict[str, list[GeneratedPost]] = {}
 _approval_lock = threading.Lock()
+
+# ---------------------------------------------------------------------------
+# Skill command parser
+# ---------------------------------------------------------------------------
+# Matches: "skill trend_scan", "skills trend_scan", "/agent skill write_post topic=NVIDIA GTC"
+_SKILL_RE = re.compile(r"(?:/agent\s+)?skills?\s+(\w+)(.*)", re.IGNORECASE)
+
+
+def _parse_skill_command(text: str) -> tuple[str, dict] | None:
+    """Return (skill_name, context) if text is a skill command, else None."""
+    m = _SKILL_RE.search(text)
+    if not m:
+        return None
+    skill_name = m.group(1).strip()
+    remainder = m.group(2).strip()
+    # Parse optional topic= or bare topic after skill name
+    context: dict = {}
+    topic_match = re.search(r"topic[=:]\s*(.+)", remainder, re.IGNORECASE)
+    if topic_match:
+        context["topic"] = topic_match.group(1).strip().strip('"\'')
+    elif remainder:
+        context["topic"] = remainder.strip().strip('"\'')
+    return skill_name, context
+
+
+def _run_skill(skill_name: str, context: dict, say) -> None:  # type: ignore[type-arg]
+    """Execute a skill in a background thread and post results to Slack."""
+    from agent.skills.registry import execute_skill
+
+    say(f":gear: Running skill `{skill_name}`…")
+    result = execute_skill(skill_name, context)
+
+    if result.next_action == "await_approval":
+        # write_post skill: use the existing approval flow
+        posts = result.output.get("posts", [])
+        articles = result.output.get("articles", [])
+        if posts:
+            blocks = _build_approval_blocks(posts, articles)
+            preview_resp = say(blocks=blocks, text="Content ready for approval")
+            preview_ts: str = preview_resp.get("ts", "")
+            with _approval_lock:
+                _pending_approvals[preview_ts] = posts
+            logger.info("skill_approval_pending", skill=skill_name, ts=preview_ts)
+        else:
+            say(result.message)
+    else:
+        say(result.message)
+
+
+def _list_skills_message() -> str:
+    from agent.skills.registry import list_skills
+    lines = [":robot_face: *Available skills:*"]
+    for s in list_skills():
+        lines.append(f"• `skill {s.name}` — {s.description}")
+    lines.append("\n_Usage: `skill <name>` or `skill <name> topic=<your topic>`_")
+    return "\n".join(lines)
+
+# ---------------------------------------------------------------------------
+# Emergency stop / budget commands
+# ---------------------------------------------------------------------------
+_AGENT_CMD_RE = re.compile(
+    r"(?:/?agent\s+)(stop|resume|budget)",
+    re.IGNORECASE,
+)
+
+
+def _handle_agent_command(cmd: str, say) -> None:  # type: ignore[type-arg]
+    """Handle /agent stop|resume|budget commands."""
+    cmd = cmd.lower()
+    if cmd == "stop":
+        try:
+            from agent.tasks.daily_skills import set_emergency_stop
+            set_emergency_stop.delay(True)
+            say(":stop_sign: *Emergency stop activated.* Scheduled skills are paused until `/agent resume`.")
+        except Exception as exc:
+            say(f":x: Could not set stop flag: `{exc}`")
+    elif cmd == "resume":
+        try:
+            from agent.tasks.daily_skills import set_emergency_stop
+            set_emergency_stop.delay(False)
+            say(":white_check_mark: *Emergency stop cleared.* Scheduled skills will resume on the next cycle.")
+        except Exception as exc:
+            say(f":x: Could not clear stop flag: `{exc}`")
+    elif cmd == "budget":
+        try:
+            from agent.tasks.daily_skills import get_budget_status
+            status = get_budget_status()
+            pct = status["pct_used"]
+            bar = "█" * int(pct / 10) + "░" * (10 - int(pct / 10))
+            stopped_note = "  :stop_sign: *STOPPED*" if status["emergency_stop"] else ""
+            say(
+                f":moneybag: *Daily API Budget*{stopped_note}\n"
+                f"`{bar}` {pct:.1f}%\n"
+                f"Spent: *${status['spend_usd']:.3f}*  /  Budget: *${status['budget_usd']:.2f}*  "
+                f"(${status['remaining_usd']:.3f} remaining)"
+            )
+        except Exception as exc:
+            say(f":x: Could not fetch budget: `{exc}`")
+
+
+# ---------------------------------------------------------------------------
+# RAG document commands  (/agent upload <url> | /agent docs | /agent forget <id>)
+# ---------------------------------------------------------------------------
+_RAG_UPLOAD_RE = re.compile(r"(?:/agent\s+)?upload\s+<?(https?://[^|>\s]+)[|>]?", re.IGNORECASE)
+_RAG_DOCS_RE = re.compile(r"(?:/agent\s+)?docs\b", re.IGNORECASE)
+_RAG_FORGET_RE = re.compile(r"(?:/agent\s+)?forget\s+([0-9a-f\-]{36})", re.IGNORECASE)
+
+
+def _handle_rag_upload(url: str, say) -> None:  # type: ignore[type-arg]
+    say(f":inbox_tray: Ingesting <{url}|{url.split('/')[-1]}>… this may take a moment.")
+    try:
+        from agent.rag import ingest_url
+        result = ingest_url(url)
+        say(result.message)
+    except Exception as exc:
+        say(f":x: Ingestion error: `{exc}`")
+
+
+def _handle_rag_docs(say) -> None:  # type: ignore[type-arg]
+    try:
+        from agent.rag import list_docs
+        docs = list_docs()
+    except Exception as exc:
+        say(f":x: Could not list docs: `{exc}`")
+        return
+
+    if not docs:
+        say(":books: Knowledge base is empty. Use `/agent upload <url>` to add documents.")
+        return
+
+    lines = [f":books: *Knowledge Base — {len(docs)} document{'s' if len(docs) != 1 else ''}*\n"]
+    for d in docs:
+        date_str = (d["created_at"] or "")[:10]
+        url_part = f" | <{d['source_url']}|link>" if d["source_url"] else ""
+        lines.append(
+            f"• *{d['title'][:60]}*{url_part}\n"
+            f"  `{d['id']}` — {d['chunk_count']} chunks — {date_str}"
+        )
+    say("\n".join(lines))
+
+
+def _handle_rag_forget(doc_id: str, say) -> None:  # type: ignore[type-arg]
+    try:
+        from agent.rag import delete_doc
+        deleted = delete_doc(doc_id)
+    except Exception as exc:
+        say(f":x: Error: `{exc}`")
+        return
+
+    if deleted:
+        say(f":wastebasket: Document `{doc_id}` deleted from knowledge base.")
+    else:
+        say(f":warning: No document found with id `{doc_id}`.")
+
 
 TRIGGER_KEYWORDS = ("research", "post", "create", "generate", "news", "ai news", "write", "about", "highlights")
 
@@ -32,8 +187,6 @@ _STRIP_PHRASES = (
     "news on", "news from", "news about",
     "tomorrow", "today", "tonight", "scheduled", "schedule",
 )
-
-import re  # noqa: E402
 
 _SCHEDULE_RE = re.compile(
     r"(tomorrow|today|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday)"
@@ -185,13 +338,59 @@ def create_slack_app() -> App:
 
         logger.info("slack_message_received", user=user, channel=channel, text=text)
 
-        if any(kw in text for kw in TRIGGER_KEYWORDS):
-            original_text = event.get("text", "")
+        original_text = event.get("text", "")
+        # Strip code-block and inline backtick formatting Slack may pass through
+        original_text = re.sub(r"```(.+?)```", r"\1", original_text, flags=re.DOTALL).strip()
+        original_text = re.sub(r"`([^`]+)`", r"\1", original_text).strip()
+
+        # --- /agent upload <url> ---
+        upload_match = _RAG_UPLOAD_RE.search(original_text)
+        if upload_match:
+            url = upload_match.group(1).strip()
+            threading.Thread(target=_handle_rag_upload, args=(url, say), daemon=True).start()
+
+        # --- /agent docs ---
+        elif _RAG_DOCS_RE.search(original_text):
+            threading.Thread(target=_handle_rag_docs, args=(say,), daemon=True).start()
+
+        # --- /agent forget <id> ---
+        elif forget_match := _RAG_FORGET_RE.search(original_text):
+            threading.Thread(target=_handle_rag_forget, args=(forget_match.group(1), say), daemon=True).start()
+
+        # --- /agent stop | resume | budget ---
+        elif agent_cmd_match := _AGENT_CMD_RE.search(original_text):
+            _handle_agent_command(agent_cmd_match.group(1), say)
+
+        # --- Skill command: "skill trend_scan" / "/agent skill write_post topic=X" ---
+        elif skill_cmd := _parse_skill_command(original_text):
+            skill_name, context = skill_cmd
+            threading.Thread(target=_run_skill, args=(skill_name, context, say), daemon=True).start()
+
+        # --- Help: "skills" or "/agent skills" ---
+        elif re.search(r"(?:/agent\s+)?skills$", original_text.strip(), re.IGNORECASE):
+            say(_list_skills_message())
+
+        # --- Standard pipeline trigger ---
+        elif any(kw in text for kw in TRIGGER_KEYWORDS):
             threading.Thread(target=_run_pipeline, args=(say, original_text), daemon=True).start()
+
         else:
             say(
-                f"Hi <@{user}>! Send a message like *research AI news and post* or "
-                "*post about NVIDIA GTC highlights* to start the pipeline."
+                f"Hi <@{user}>! Here's what I can do:\n"
+                "*Content pipeline*\n"
+                "• *research AI news and post* — generate + publish content\n"
+                "• *skill trend_scan* — scan for trending topics\n"
+                "• *skill write_post topic=NVIDIA GTC* — draft a post on a specific topic\n"
+                "• *skill daily_review* — view yesterday's post performance\n"
+                "• *skills* — list all available skills\n"
+                "*Knowledge base (RAG)*\n"
+                "• *upload https://...* — ingest a URL or PDF into the knowledge base\n"
+                "• *docs* — list all ingested documents\n"
+                "• *forget <doc-id>* — remove a document\n"
+                "*Controls*\n"
+                "• *agent stop* — pause all scheduled skills :stop_sign:\n"
+                "• *agent resume* — resume scheduled skills\n"
+                "• *agent budget* — check today's API spend"
             )
 
     @app.event("app_mention")
