@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from agent.rag.embedder import embed_texts, embed_query, _MODEL
+from agent.rag.embedder import _MODEL, embed_query, embed_texts
 
 
 @pytest.fixture
@@ -47,9 +47,11 @@ class TestEmbedTexts:
             embed_texts(["some text"])
 
         call_kwargs = mock_voyage_client.embed.call_args
-        assert call_kwargs.kwargs.get("input_type") == "document" or \
-               call_kwargs.args[2] == "document" or \
-               "document" in str(call_kwargs)
+        assert (
+            call_kwargs.kwargs.get("input_type") == "document"
+            or call_kwargs.args[2] == "document"
+            or "document" in str(call_kwargs)
+        )
 
     def test_uses_correct_model(self, mock_voyage_client):
         with (

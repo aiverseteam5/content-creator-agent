@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
 
 import redis.asyncio as aioredis
 from fastapi import FastAPI
@@ -72,9 +75,7 @@ async def health_check() -> HealthResponse:
     try:
         engine = get_engine()
         async with engine.connect() as conn:
-            await conn.execute(
-                __import__("sqlalchemy").text("SELECT 1")
-            )
+            await conn.execute(__import__("sqlalchemy").text("SELECT 1"))
         db_status = "connected"
     except Exception as e:
         db_status = f"error: {str(e)[:100]}"

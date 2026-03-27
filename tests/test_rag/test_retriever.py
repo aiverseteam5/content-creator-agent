@@ -3,18 +3,17 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
-from agent.rag.retriever import RetrievedChunk, retrieve_chunks, list_docs, delete_doc
+from agent.rag.retriever import RetrievedChunk, delete_doc, list_docs, retrieve_chunks
 from agent.sources.rag_source import search_rag
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def sample_chunks() -> list[RetrievedChunk]:
@@ -63,6 +62,7 @@ def sample_docs() -> list[dict]:
 # retrieve_chunks
 # ---------------------------------------------------------------------------
 
+
 class TestRetrieveChunks:
     def test_returns_empty_list_when_embed_fails(self):
         # embed_query is imported locally inside retrieve_chunks → patch at source
@@ -99,6 +99,7 @@ class TestRetrieveChunks:
 # list_docs
 # ---------------------------------------------------------------------------
 
+
 class TestListDocs:
     def test_returns_list_of_dicts(self, sample_docs):
         with patch("agent.rag.retriever._run_async", return_value=sample_docs):
@@ -120,6 +121,7 @@ class TestListDocs:
 # delete_doc
 # ---------------------------------------------------------------------------
 
+
 class TestDeleteDoc:
     def test_returns_true_when_doc_found(self):
         with patch("agent.rag.retriever._run_async", return_value=True):
@@ -133,6 +135,7 @@ class TestDeleteDoc:
 # ---------------------------------------------------------------------------
 # search_rag (rag_source)
 # ---------------------------------------------------------------------------
+
 
 class TestSearchRag:
     def test_returns_content_sources_from_chunks(self, sample_chunks):

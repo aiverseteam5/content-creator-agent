@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-_CHUNK_WORDS = 400   # target words per chunk
+_CHUNK_WORDS = 400  # target words per chunk
 _OVERLAP_WORDS = 50  # overlap between consecutive chunks
-_MIN_CHARS = 80      # discard chunks shorter than this
+_MIN_CHARS = 80  # discard chunks shorter than this
 
 
 def chunk_text(text: str, chunk_words: int = _CHUNK_WORDS, overlap: int = _OVERLAP_WORDS) -> list[str]:

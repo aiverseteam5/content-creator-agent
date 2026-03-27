@@ -10,9 +10,9 @@ from typing import Any
 @dataclass
 class SkillResult:
     success: bool
-    output: Any                     # Skill-specific payload
-    message: str                    # Human-readable Slack summary
-    next_action: str | None         # "await_approval" | "notify" | "publish" | None
+    output: Any  # Skill-specific payload
+    message: str  # Human-readable Slack summary
+    next_action: str | None  # "await_approval" | "notify" | "publish" | None
 
 
 class Skill(ABC):

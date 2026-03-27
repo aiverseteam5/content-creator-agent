@@ -9,10 +9,10 @@ import pytest
 # Import pure helper functions without triggering Celery setup
 from agent.tasks import daily_skills as ds
 
-
 # ---------------------------------------------------------------------------
 # Helpers: _is_stopped / _get_spend_usd / _record_spend
 # ---------------------------------------------------------------------------
+
 
 class TestIsStoppedFlag:
     def test_returns_false_when_key_missing(self):
@@ -70,6 +70,7 @@ class TestRecordSpend:
 # ---------------------------------------------------------------------------
 # run_scheduled_skill guards
 # ---------------------------------------------------------------------------
+
 
 class TestRunScheduledSkillGuards:
     """Test the three guards without actually running a skill."""
@@ -143,6 +144,7 @@ class TestRunScheduledSkillGuards:
 # ---------------------------------------------------------------------------
 # get_budget_status
 # ---------------------------------------------------------------------------
+
 
 class TestGetBudgetStatus:
     def test_returns_expected_keys(self):

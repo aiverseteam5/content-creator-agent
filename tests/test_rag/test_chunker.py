@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import pytest
-
-from agent.rag.chunker import chunk_text, _MIN_CHARS
+from agent.rag.chunker import chunk_text
 
 
 class TestChunkText:

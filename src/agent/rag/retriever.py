@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from typing import Optional
 
 from agent.core.logging import get_logger
 
@@ -15,7 +14,7 @@ logger = get_logger(__name__)
 class RetrievedChunk:
     doc_id: uuid.UUID
     doc_title: str
-    source_url: Optional[str]
+    source_url: str | None
     chunk_index: int
     content: str
     similarity: float  # 0–1, higher = more similar
@@ -40,6 +39,7 @@ def _run_async(coro):
 # ---------------------------------------------------------------------------
 # Public API (sync wrappers over async DB)
 # ---------------------------------------------------------------------------
+
 
 def retrieve_chunks(query: str, top_k: int = 5) -> list[RetrievedChunk]:
     """Return the top-k most relevant chunks for *query*."""
@@ -68,17 +68,16 @@ def delete_doc(doc_id: str) -> bool:
 # Async DB helpers
 # ---------------------------------------------------------------------------
 
+
 async def _async_retrieve(vector: list[float], top_k: int) -> list[RetrievedChunk]:
-    from sqlalchemy import text, select
-    from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy import text
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
     from agent.core.config import get_settings
-    from agent.core.models import KnowledgeChunk, KnowledgeDoc
 
     settings = get_settings()
     engine = create_async_engine(settings.database_url, echo=False)
-    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     results: list[RetrievedChunk] = []
     try:
@@ -124,22 +123,21 @@ async def _async_retrieve(vector: list[float], top_k: int) -> list[RetrievedChun
 
 async def _async_list_docs() -> list[dict]:
     from sqlalchemy import select
-    from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
     from agent.core.config import get_settings
     from agent.core.models import KnowledgeDoc
 
     settings = get_settings()
     engine = create_async_engine(settings.database_url, echo=False)
-    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     docs: list[dict] = []
     try:
         async with async_session() as session:
-            rows = (await session.execute(
-                select(KnowledgeDoc).order_by(KnowledgeDoc.created_at.desc())
-            )).scalars().all()
+            rows = (
+                (await session.execute(select(KnowledgeDoc).order_by(KnowledgeDoc.created_at.desc()))).scalars().all()
+            )
             docs = [
                 {
                     "id": str(d.id),
@@ -157,16 +155,14 @@ async def _async_list_docs() -> list[dict]:
 
 
 async def _async_delete_doc(doc_id: str) -> bool:
-    from sqlalchemy import select
-    from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
     from agent.core.config import get_settings
     from agent.core.models import KnowledgeDoc
 
     settings = get_settings()
     engine = create_async_engine(settings.database_url, echo=False)
-    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     deleted = False
     try:

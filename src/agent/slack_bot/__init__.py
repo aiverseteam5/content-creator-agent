@@ -4,13 +4,16 @@ from __future__ import annotations
 
 import re
 import threading
+from typing import TYPE_CHECKING, Any
 
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 
 from agent.core.config import get_settings
 from agent.core.logging import get_logger
-from agent.generators import GeneratedPost
+
+if TYPE_CHECKING:
+    from agent.generators import GeneratedPost
 
 logger = get_logger(__name__)
 
@@ -36,13 +39,13 @@ def _parse_skill_command(text: str) -> tuple[str, dict] | None:
     context: dict = {}
     topic_match = re.search(r"topic[=:]\s*(.+)", remainder, re.IGNORECASE)
     if topic_match:
-        context["topic"] = topic_match.group(1).strip().strip('"\'')
+        context["topic"] = topic_match.group(1).strip().strip("\"'")
     elif remainder:
-        context["topic"] = remainder.strip().strip('"\'')
+        context["topic"] = remainder.strip().strip("\"'")
     return skill_name, context
 
 
-def _run_skill(skill_name: str, context: dict, say) -> None:  # type: ignore[type-arg]
+def _run_skill(skill_name: str, context: dict, say: Any) -> None:
     """Execute a skill in a background thread and post results to Slack."""
     from agent.skills.registry import execute_skill
 
@@ -68,11 +71,13 @@ def _run_skill(skill_name: str, context: dict, say) -> None:  # type: ignore[typ
 
 def _list_skills_message() -> str:
     from agent.skills.registry import list_skills
+
     lines = [":robot_face: *Available skills:*"]
     for s in list_skills():
         lines.append(f"• `skill {s.name}` — {s.description}")
     lines.append("\n_Usage: `skill <name>` or `skill <name> topic=<your topic>`_")
     return "\n".join(lines)
+
 
 # ---------------------------------------------------------------------------
 # Emergency stop / budget commands
@@ -83,12 +88,13 @@ _AGENT_CMD_RE = re.compile(
 )
 
 
-def _handle_agent_command(cmd: str, say) -> None:  # type: ignore[type-arg]
+def _handle_agent_command(cmd: str, say: Any) -> None:
     """Handle /agent stop|resume|budget commands."""
     cmd = cmd.lower()
     if cmd == "stop":
         try:
             from agent.tasks.daily_skills import set_emergency_stop
+
             set_emergency_stop.delay(True)
             say(":stop_sign: *Emergency stop activated.* Scheduled skills are paused until `/agent resume`.")
         except Exception as exc:
@@ -96,6 +102,7 @@ def _handle_agent_command(cmd: str, say) -> None:  # type: ignore[type-arg]
     elif cmd == "resume":
         try:
             from agent.tasks.daily_skills import set_emergency_stop
+
             set_emergency_stop.delay(False)
             say(":white_check_mark: *Emergency stop cleared.* Scheduled skills will resume on the next cycle.")
         except Exception as exc:
@@ -103,6 +110,7 @@ def _handle_agent_command(cmd: str, say) -> None:  # type: ignore[type-arg]
     elif cmd == "budget":
         try:
             from agent.tasks.daily_skills import get_budget_status
+
             status = get_budget_status()
             pct = status["pct_used"]
             bar = "█" * int(pct / 10) + "░" * (10 - int(pct / 10))
@@ -125,19 +133,21 @@ _RAG_DOCS_RE = re.compile(r"(?:/agent\s+)?docs\b", re.IGNORECASE)
 _RAG_FORGET_RE = re.compile(r"(?:/agent\s+)?forget\s+([0-9a-f\-]{36})", re.IGNORECASE)
 
 
-def _handle_rag_upload(url: str, say) -> None:  # type: ignore[type-arg]
+def _handle_rag_upload(url: str, say: Any) -> None:
     say(f":inbox_tray: Ingesting <{url}|{url.split('/')[-1]}>… this may take a moment.")
     try:
         from agent.rag import ingest_url
+
         result = ingest_url(url)
         say(result.message)
     except Exception as exc:
         say(f":x: Ingestion error: `{exc}`")
 
 
-def _handle_rag_docs(say) -> None:  # type: ignore[type-arg]
+def _handle_rag_docs(say: Any) -> None:
     try:
         from agent.rag import list_docs
+
         docs = list_docs()
     except Exception as exc:
         say(f":x: Could not list docs: `{exc}`")
@@ -151,16 +161,14 @@ def _handle_rag_docs(say) -> None:  # type: ignore[type-arg]
     for d in docs:
         date_str = (d["created_at"] or "")[:10]
         url_part = f" | <{d['source_url']}|link>" if d["source_url"] else ""
-        lines.append(
-            f"• *{d['title'][:60]}*{url_part}\n"
-            f"  `{d['id']}` — {d['chunk_count']} chunks — {date_str}"
-        )
+        lines.append(f"• *{d['title'][:60]}*{url_part}\n  `{d['id']}` — {d['chunk_count']} chunks — {date_str}")
     say("\n".join(lines))
 
 
-def _handle_rag_forget(doc_id: str, say) -> None:  # type: ignore[type-arg]
+def _handle_rag_forget(doc_id: str, say: Any) -> None:
     try:
         from agent.rag import delete_doc
+
         deleted = delete_doc(doc_id)
     except Exception as exc:
         say(f":x: Error: `{exc}`")
@@ -176,16 +184,45 @@ TRIGGER_KEYWORDS = ("research", "post", "create", "generate", "news", "ai news",
 
 # Words to strip when extracting the topic from the user's message
 _STRIP_PHRASES = (
-    "can you", "please", "do a", "do", "research on", "research about", "research",
-    "post about", "post on", "post", "write about", "write a post about", "write",
-    "create a post about", "create a post on", "create",
-    "generate a post about", "generate",
-    "add the key highlights", "add key highlights", "key highlights",
-    "and post", "and publish", "and share",
-    "top 3 news on", "top 3", "top news on", "top news from",
-    "latest news on", "latest news from", "latest news",
-    "news on", "news from", "news about",
-    "tomorrow", "today", "tonight", "scheduled", "schedule",
+    "can you",
+    "please",
+    "do a",
+    "do",
+    "research on",
+    "research about",
+    "research",
+    "post about",
+    "post on",
+    "post",
+    "write about",
+    "write a post about",
+    "write",
+    "create a post about",
+    "create a post on",
+    "create",
+    "generate a post about",
+    "generate",
+    "add the key highlights",
+    "add key highlights",
+    "key highlights",
+    "and post",
+    "and publish",
+    "and share",
+    "top 3 news on",
+    "top 3",
+    "top news on",
+    "top news from",
+    "latest news on",
+    "latest news from",
+    "latest news",
+    "news on",
+    "news from",
+    "news about",
+    "tomorrow",
+    "today",
+    "tonight",
+    "scheduled",
+    "schedule",
 )
 
 _SCHEDULE_RE = re.compile(
@@ -221,7 +258,7 @@ def _extract_schedule(raw_text: str) -> str | None:
 # ---------------------------------------------------------------------------
 # Pipeline (runs in background thread)
 # ---------------------------------------------------------------------------
-def _run_pipeline(say, user_text: str = "") -> None:  # type: ignore[type-arg]
+def _run_pipeline(say: Any, user_text: str = "") -> None:
     from agent.generators import generate_posts
     from agent.research import fetch_rss_articles
 
@@ -259,7 +296,7 @@ def _run_pipeline(say, user_text: str = "") -> None:  # type: ignore[type-arg]
         say(f":x: Pipeline error: `{exc}`")
 
 
-def _build_approval_blocks(posts: list[GeneratedPost], articles, schedule: str | None = None) -> list[dict]:  # type: ignore[type-arg]
+def _build_approval_blocks(posts: list[GeneratedPost], articles: Any, schedule: str | None = None) -> list[dict]:
     header_text = ":pencil: Content Draft — Ready for Review"
     if schedule:
         header_text += f"  |  :calendar: Scheduled: {schedule}"
@@ -429,6 +466,7 @@ def create_slack_app() -> App:
 
         def _publish() -> None:
             from agent.publishers import publish_all
+
             results = publish_all(posts)
             lines = []
             for platform, post_id in results.items():
@@ -454,7 +492,9 @@ def create_slack_app() -> App:
         with _approval_lock:
             _pending_approvals.pop(message_ts, None)
 
-        say(f":no_entry: <@{user}> rejected this draft. Nothing was published.\nSend *research AI news and post* to generate a new draft.")
+        say(
+            f":no_entry: <@{user}> rejected this draft. Nothing was published.\nSend *research AI news and post* to generate a new draft."
+        )
 
         try:
             client.chat_update(

@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -18,6 +21,7 @@ from agent.core.config import get_settings
 
 class Base(DeclarativeBase):
     """Base class for all ORM models."""
+
     pass
 
 

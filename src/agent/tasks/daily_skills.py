@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import json
 import os
 from datetime import date
+from typing import Any
 
 import redis as redis_lib
 
@@ -46,7 +46,7 @@ def _get_spend_usd() -> float:
     try:
         r = _redis()
         val = r.get(_budget_key())
-        return float(val) if val else 0.0
+        return float(str(val)) if val else 0.0
     except Exception:
         return 0.0
 
@@ -69,6 +69,7 @@ def _post_to_slack(message: str) -> None:
     """Fire-and-forget Slack message via slack_sdk WebClient."""
     try:
         from slack_sdk import WebClient
+
         from agent.core.config import get_settings
 
         settings = get_settings()
@@ -90,7 +91,7 @@ def _post_to_slack(message: str) -> None:
     max_retries=2,
     default_retry_delay=300,  # 5 min back-off
 )
-def run_scheduled_skill(self, skill_name: str, context: dict | None = None) -> dict:
+def run_scheduled_skill(self: Any, skill_name: str, context: dict | None = None) -> dict:
     """
     Execute a named skill as part of the daily schedule.
 
@@ -138,7 +139,7 @@ def run_scheduled_skill(self, skill_name: str, context: dict | None = None) -> d
         result = execute_skill(skill_name, context)
     except Exception as exc:
         logger.error("scheduled_skill_error", skill=skill_name, error=str(exc))
-        raise self.retry(exc=exc)
+        raise self.retry(exc=exc) from exc
 
     # 5. Estimate cost and record spend (rough: 2K tokens per run)
     estimated_usd = 2.0 * _COST_PER_1K_TOKENS_USD

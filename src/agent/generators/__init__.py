@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from openai import OpenAI
 
@@ -12,14 +13,16 @@ from agent.core.config import (
     get_settings,
 )
 from agent.core.logging import get_logger
-from agent.research import ArticleResult
+
+if TYPE_CHECKING:
+    from agent.research import ArticleResult
 
 logger = get_logger(__name__)
 
 
 @dataclass
 class GeneratedPost:
-    platform: str   # "linkedin" | "twitter"
+    platform: str  # "linkedin" | "twitter"
     body: str
     char_count: int
 
@@ -70,8 +73,7 @@ def generate_posts(
     system_prompt = _build_system_prompt(brand)
 
     article_block = "\n\n".join(
-        f"[{i + 1}] {a.title}\nSource: {a.source}\nURL: {a.url}\nSummary: {a.summary}"
-        for i, a in enumerate(articles)
+        f"[{i + 1}] {a.title}\nSource: {a.source}\nURL: {a.url}\nSummary: {a.summary}" for i, a in enumerate(articles)
     )
 
     # Topic focus instruction prepended when user gave a specific subject
@@ -79,7 +81,8 @@ def generate_posts(
         f"The user specifically wants content focused on: *{topic}*.\n"
         "Prioritise this topic. Use the articles below for supporting context, "
         "data points, and quotes where relevant — but the post must centre on the requested topic.\n\n"
-        if topic else ""
+        if topic
+        else ""
     )
 
     platform_specs = {
@@ -105,11 +108,7 @@ def generate_posts(
     results: list[GeneratedPost] = []
 
     for platform, spec in platform_specs.items():
-        user_prompt = (
-            f"{topic_instruction}"
-            f"{spec['instruction']}\n\n"
-            f"Reference articles:\n\n{article_block}"
-        )
+        user_prompt = f"{topic_instruction}{spec['instruction']}\n\nReference articles:\n\n{article_block}"
         try:
             response = client.chat.completions.create(
                 model=settings.default_model,
@@ -120,7 +119,7 @@ def generate_posts(
                 temperature=0.7,
                 max_tokens=800,
             )
-            body = response.choices[0].message.content.strip()
+            body = (response.choices[0].message.content or "").strip()
             body = _truncate_to_limit(body, spec["max"])
             results.append(GeneratedPost(platform=platform, body=body, char_count=len(body)))
             logger.info("post_generated", platform=platform, chars=len(body), topic=topic or "general")

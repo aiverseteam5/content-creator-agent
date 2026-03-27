@@ -79,9 +79,18 @@ known-first-party = ["agent"]
 
 [tool.mypy]
 python_version = "3.12"
-strict = true
 plugins = ["pydantic.mypy"]
 ignore_missing_imports = true
+# Practical strict subset — excludes rules that are noisy for Celery/Slack callback signatures
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_reexport = true
+warn_unused_ignores = false
+warn_redundant_casts = true
+disallow_untyped_defs = false
+disallow_any_generics = false
+disallow_untyped_decorators = false
+warn_return_any = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

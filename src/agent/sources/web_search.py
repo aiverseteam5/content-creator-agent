@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from agent.core.config import get_settings
 from agent.core.logging import get_logger
@@ -53,7 +53,7 @@ def search_web(queries: list[str], max_results_per_query: int = 5) -> list[Conte
                         full_text=r.get("raw_content"),
                         url=r.get("url"),
                         relevance_score=float(r.get("score", 0.5)),
-                        freshness=datetime.now(timezone.utc),
+                        freshness=datetime.now(UTC),
                         metadata={"query": query, "tavily_score": r.get("score")},
                     )
                 )

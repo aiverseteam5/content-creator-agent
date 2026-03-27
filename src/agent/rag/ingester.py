@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Optional
 
 import httpx
 
@@ -25,7 +24,7 @@ _MAX_CONTENT_CHARS = 200_000  # cap to avoid runaway documents
 @dataclass
 class IngestResult:
     success: bool
-    doc_id: Optional[str]
+    doc_id: str | None
     title: str
     chunk_count: int
     message: str
@@ -35,6 +34,7 @@ class IngestResult:
 # Public entry point
 # ---------------------------------------------------------------------------
 
+
 def ingest_url(url: str) -> IngestResult:
     """Fetch *url*, extract text, chunk, embed, and store in the knowledge base."""
     logger.info("ingest_url_start", url=url)
@@ -42,32 +42,41 @@ def ingest_url(url: str) -> IngestResult:
     try:
         raw_text, title = _fetch_content(url)
     except Exception as exc:
-        return IngestResult(success=False, doc_id=None, title="", chunk_count=0,
-                            message=f":x: Failed to fetch `{url}`: `{exc}`")
+        return IngestResult(
+            success=False, doc_id=None, title="", chunk_count=0, message=f":x: Failed to fetch `{url}`: `{exc}`"
+        )
 
     if not raw_text.strip():
-        return IngestResult(success=False, doc_id=None, title=title, chunk_count=0,
-                            message=":warning: The page returned no readable text.")
+        return IngestResult(
+            success=False,
+            doc_id=None,
+            title=title,
+            chunk_count=0,
+            message=":warning: The page returned no readable text.",
+        )
 
     raw_text = raw_text[:_MAX_CONTENT_CHARS]
     chunks = chunk_text(raw_text)
     if not chunks:
-        return IngestResult(success=False, doc_id=None, title=title, chunk_count=0,
-                            message=":warning: Content too short to ingest.")
+        return IngestResult(
+            success=False, doc_id=None, title=title, chunk_count=0, message=":warning: Content too short to ingest."
+        )
 
     logger.info("ingest_chunked", url=url, chunks=len(chunks))
 
     try:
         embeddings = embed_texts(chunks)
     except Exception as exc:
-        return IngestResult(success=False, doc_id=None, title=title, chunk_count=0,
-                            message=f":x: Embedding failed: `{exc}`")
+        return IngestResult(
+            success=False, doc_id=None, title=title, chunk_count=0, message=f":x: Embedding failed: `{exc}`"
+        )
 
     try:
         doc_id = _persist(url, title, chunks, embeddings)
     except Exception as exc:
-        return IngestResult(success=False, doc_id=None, title=title, chunk_count=0,
-                            message=f":x: Database error: `{exc}`")
+        return IngestResult(
+            success=False, doc_id=None, title=title, chunk_count=0, message=f":x: Database error: `{exc}`"
+        )
 
     logger.info("ingest_complete", url=url, doc_id=doc_id, chunks=len(chunks))
     return IngestResult(
@@ -87,10 +96,12 @@ def ingest_url(url: str) -> IngestResult:
 # Fetch helpers
 # ---------------------------------------------------------------------------
 
+
 def _fetch_content(url: str) -> tuple[str, str]:
     """Return (plain_text, title) from a URL. Handles HTML and PDF."""
-    resp = httpx.get(url, follow_redirects=True, timeout=20.0,
-                     headers={"User-Agent": "Mozilla/5.0 ContentCreatorAgent/1.0"})
+    resp = httpx.get(
+        url, follow_redirects=True, timeout=20.0, headers={"User-Agent": "Mozilla/5.0 ContentCreatorAgent/1.0"}
+    )
     resp.raise_for_status()
 
     content_type = resp.headers.get("content-type", "")
@@ -140,22 +151,21 @@ def _extract_pdf(content: bytes, url: str) -> tuple[str, str]:
 # Database persistence (async → sync wrapper)
 # ---------------------------------------------------------------------------
 
+
 def _persist(url: str, title: str, chunks: list[str], embeddings: list[list[float]]) -> str:
     """Store the document and its chunks. Returns the new doc UUID as a string."""
     import asyncio
     import concurrent.futures
 
     async def _do_persist() -> str:
-        import uuid
-        from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-        from sqlalchemy.orm import sessionmaker
+        from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
         from agent.core.config import get_settings
         from agent.core.models import KnowledgeChunk, KnowledgeDoc
 
         settings = get_settings()
         engine = create_async_engine(settings.database_url, echo=False)
-        async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+        async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
         try:
             async with async_session() as session:
@@ -168,13 +178,15 @@ def _persist(url: str, title: str, chunks: list[str], embeddings: list[list[floa
                 session.add(doc)
                 await session.flush()  # get doc.id
 
-                for idx, (text, vec) in enumerate(zip(chunks, embeddings)):
-                    session.add(KnowledgeChunk(
-                        doc_id=doc.id,
-                        chunk_index=idx,
-                        content=text,
-                        embedding=vec,
-                    ))
+                for idx, (text, vec) in enumerate(zip(chunks, embeddings, strict=True)):
+                    session.add(
+                        KnowledgeChunk(
+                            doc_id=doc.id,
+                            chunk_index=idx,
+                            content=text,
+                            embedding=vec,
+                        )
+                    )
 
                 await session.commit()
                 return str(doc.id)

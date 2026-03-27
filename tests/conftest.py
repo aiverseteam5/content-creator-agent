@@ -27,6 +27,7 @@ def anyio_backend():
 async def app():
     """Create a FastAPI test app."""
     from agent.main import app as fastapi_app
+
     yield fastapi_app
 
 

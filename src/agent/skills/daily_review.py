@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from agent.core.logging import get_logger
 from agent.skills.base import Skill, SkillResult
@@ -29,9 +29,8 @@ class DailyReviewSkill(Skill):
     def _build_review(self, context: dict) -> SkillResult:
         import asyncio
 
-        from sqlalchemy import select, func
-        from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-        from sqlalchemy.orm import sessionmaker
+        from sqlalchemy import func, select
+        from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
         from agent.core.config import get_settings
         from agent.core.models import ContentItem, PostPerformance
@@ -40,11 +39,9 @@ class DailyReviewSkill(Skill):
 
         async def _query() -> list[dict]:
             engine = create_async_engine(settings.database_url, echo=False)
-            async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+            async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
-            yesterday_start = (datetime.now(timezone.utc) - timedelta(days=1)).replace(
-                hour=0, minute=0, second=0, microsecond=0
-            )
+            yesterday_start = (datetime.now(UTC) - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
             yesterday_end = yesterday_start + timedelta(days=1)
 
             async with async_session() as session:
@@ -98,6 +95,7 @@ class DailyReviewSkill(Skill):
             loop = asyncio.get_event_loop()
             if loop.is_running():
                 import concurrent.futures
+
                 with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
                     rows = pool.submit(asyncio.run, _query()).result()
             else:
@@ -124,9 +122,7 @@ class DailyReviewSkill(Skill):
         total_impressions = sum(r["impressions"] for r in rows)
         total_likes = sum(r["likes"] for r in rows)
         total_shares = sum(r["shares"] for r in rows)
-        avg_engagement = (
-            sum(r["engagement_rate"] for r in rows) / len(rows) if rows else 0.0
-        )
+        avg_engagement = sum(r["engagement_rate"] for r in rows) / len(rows) if rows else 0.0
 
         lines.append(
             f":chart_with_upwards_trend: *Yesterday at a glance*  "
