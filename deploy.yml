@@ -1,0 +1,9 @@
+grype-scan:
+  runs-on: ubuntu-latest
+  steps:
+    - name: Install Grype
+      run: |
+        curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+    - name: Update Grype database
+      run: grype db update
+    # other steps...
