@@ -23,7 +23,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   grype-scan:
-    - name: Update Grype database
+    name: Update Grype database
     run: grype db update
     steps:
       - uses: actions/checkout@v4
