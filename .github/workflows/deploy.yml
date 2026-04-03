@@ -6,11 +6,7 @@ on:
   pull_request:
     branches: [main]
 
-# ═══════════════════════════════════════════════════
-# STAGE 1 — Pre-deploy security scans (parallel)
-# ═══════════════════════════════════════════════════
 jobs:
-
   gitleaks-scan:
     name: Gitleaks — secrets scan
     runs-on: ubuntu-latest
@@ -23,10 +19,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   grype-scan:
-    name: Update Grype database
-    run: grype db update
+    name: Grype — vulnerability scan
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Update Grype database
+        run: grype db update
       - uses: anchore/scan-action@v3
         with:
           path: "."
@@ -36,14 +34,12 @@ jobs:
         if: always()
         with:
           sarif_file: results.sarif
-          grype-version: latest  # Force latest version/db
 
   osv-scan:
     name: OSV-Scanner — dependency audit
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Run OSV-Scanner
         uses: google/osv-scanner-action@v1.9.2
         with:
@@ -53,7 +49,6 @@ jobs:
             --output=/tmp/osv-results.json
             ./
         continue-on-error: false
-
       - name: Upload OSV report
         uses: actions/upload-artifact@v4
         if: always()
@@ -68,7 +63,6 @@ jobs:
       image: semgrep/semgrep
     steps:
       - uses: actions/checkout@v4
-
       - name: Run Semgrep security rules
         run: |
           semgrep ci \
@@ -79,27 +73,21 @@ jobs:
             --sarif \
             --output /tmp/semgrep.sarif
         env:
-          SEMGREP_APP_TOKEN: ""    # leave blank for free community rules
-
+          SEMGREP_APP_TOKEN: ""
       - name: Upload Semgrep SARIF
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
           sarif_file: /tmp/semgrep.sarif
-
       - name: Fail on HIGH findings
         run: |
           semgrep ci \
             --config "p/security-audit" \
             --config "p/owasp-top-ten" \
-            --error                       # exits non-zero if findings exist
+            --error
         env:
           SEMGREP_APP_TOKEN: ""
 
-
-# ═══════════════════════════════════════════════════
-# STAGE 2 — Malware scan on server (before git pull)
-# ═══════════════════════════════════════════════════
   malware-scan:
     name: ClamAV + LMD — malware scan
     runs-on: ubuntu-latest
@@ -115,12 +103,10 @@ jobs:
           port:     ${{ secrets.SSH_PORT }}
           script: |
             set -e
-
             echo "=== Refreshing ClamAV definitions ==="
             sudo systemctl stop clamav-freshclam || true
             sudo freshclam --quiet
             sudo systemctl start clamav-freshclam || true
-
             echo "=== ClamAV scan ==="
             sudo clamscan -r /home/deploy/your-app \
               --infected \
@@ -132,20 +118,14 @@ jobs:
               cat /tmp/clamav.log
               exit 1
             fi
-
             echo "=== Linux Malware Detect scan ==="
             sudo maldet -a /home/deploy/your-app
             if [ $? -ne 0 ]; then
               echo "MALWARE FOUND by LMD — aborting!"
               exit 1
             fi
-
             echo "Server is clean — proceeding to deploy"
 
-
-# ═══════════════════════════════════════════════════
-# STAGE 3 — Deploy
-# ═══════════════════════════════════════════════════
   deploy:
     name: Deploy to Hostinger
     runs-on: ubuntu-latest
@@ -163,26 +143,16 @@ jobs:
             set -e
             cd /home/deploy/your-app
             git pull origin main
-
             # ── Node.js ─────────────────────
             # npm ci --production && pm2 restart your-app
-
             # ── Python ──────────────────────
             # pip install -r requirements.txt --break-system-packages
             # systemctl restart your-app
-
             # ── Docker ──────────────────────
             # docker compose pull && docker compose up -d
-
             echo "Deployed at $(date)"
-
       - name: Wait for app to boot
         run: sleep 25
-
-
-# ═══════════════════════════════════════════════════
-# STAGE 4 — Post-deploy assessments (parallel)
-# ═══════════════════════════════════════════════════
 
   nmap-scan:
     name: NMAP — port & service scan
@@ -191,7 +161,6 @@ jobs:
     steps:
       - name: Install NMAP
         run: sudo apt-get install -y nmap
-
       - name: Run NMAP with vuln scripts
         run: |
           nmap -sV -sC \
@@ -200,10 +169,8 @@ jobs:
             -oX /tmp/nmap.xml \
             -oN /tmp/nmap.txt \
             ${{ secrets.SSH_HOST }}
-
       - name: Show findings
         run: cat /tmp/nmap.txt
-
       - name: Upload NMAP report
         uses: actions/upload-artifact@v4
         with:
@@ -219,10 +186,8 @@ jobs:
         run: |
           go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
           echo "$HOME/go/bin" >> $GITHUB_PATH
-
       - name: Update Nuclei templates
         run: nuclei -update-templates -silent
-
       - name: Run Nuclei scan
         run: |
           nuclei \
@@ -233,7 +198,6 @@ jobs:
             -json-export /tmp/nuclei-results.json \
             -stats \
             -silent
-
       - name: Check for critical findings
         run: |
           CRIT=$(cat /tmp/nuclei-results.json | \
@@ -244,7 +208,6 @@ jobs:
             cat /tmp/nuclei-results.txt
             exit 1
           fi
-
       - name: Upload Nuclei report
         uses: actions/upload-artifact@v4
         if: always()
@@ -261,10 +224,9 @@ jobs:
         uses: zaproxy/action-full-scan@v0.10.0
         with:
           target: ${{ secrets.APP_URL }}
-          cmd_options: '-a -j'     # -a = ajax spider, -j = include active scan
+          cmd_options: '-a -j'
           fail_action: true
           allow_issue_writing: false
-
       - name: Upload ZAP HTML report
         uses: actions/upload-artifact@v4
         if: always()
@@ -278,19 +240,17 @@ jobs:
     needs: [deploy]
     steps:
       - uses: actions/checkout@v4
-
       - name: Install Boofuzz
         run: pip install boofuzz --break-system-packages
-
       - name: Create fuzz test script
         run: |
           cat > /tmp/fuzz_http.py << 'EOF'
           from boofuzz import *
           import sys
-
+          
           TARGET_HOST = "${{ secrets.SSH_HOST }}"
           TARGET_PORT = 80
-
+          
           def main():
               session = Session(
                   target=Target(
@@ -300,7 +260,7 @@ jobs:
                   crash_threshold_element=3,
                   keep_web_open=False,
               )
-
+              
               s_initialize("HTTP GET")
               with s_block("Request-Line"):
                   s_group("Method", ["GET", "POST", "PUT", "DELETE", "PATCH"])
@@ -309,21 +269,17 @@ jobs:
                   s_delim(" ")
                   s_string("HTTP/1.1", name="HTTP-Version")
               s_static("\r\nHost: " + TARGET_HOST + "\r\n\r\n")
-
+              
               session.connect(s_get("HTTP GET"))
-
-              # Run limited fuzz iterations in CI
               session.fuzz(max_depth=1)
-
+          
           if __name__ == "__main__":
               main()
           EOF
-
       - name: Run Boofuzz fuzz test
         run: |
           timeout 300 python3 /tmp/fuzz_http.py || true
           echo "Boofuzz run completed"
-
       - name: Upload Boofuzz results
         uses: actions/upload-artifact@v4
         if: always()
@@ -331,10 +287,6 @@ jobs:
           name: boofuzz-report
           path: boofuzz-results/
 
-
-# ═══════════════════════════════════════════════════
-# STAGE 5 — Summary & gate
-# ═══════════════════════════════════════════════════
   final-summary:
     name: Pipeline summary
     runs-on: ubuntu-latest
@@ -351,7 +303,6 @@ jobs:
           echo " OWASP ZAP : ${{ needs.owasp-zap-scan.result }}"
           echo " Boofuzz   : ${{ needs.boofuzz-scan.result }}"
           echo "═══════════════════════════════════"
-
       - name: Fail pipeline if critical scan failed
         if: |
           needs.nuclei-scan.result    == 'failure' ||
