@@ -1,4 +1,4 @@
-name: CI
+name: Deploy
 
 on:
   push:
@@ -6,17 +6,21 @@ on:
       - main
 
 jobs:
-  grype-scan:
+  deploy:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
 
       - name: Install Grype
-        run: curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
 
-      - name: Update Grype database
-        run: grype db update
+      - name: Update Grype DB
+        run: |
+          grype db reset
 
-      - name: Run Grype scan
-        run: grype .
+      - name: Run Grype
+        run: |
+          grype .
