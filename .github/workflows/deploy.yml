@@ -23,8 +23,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   grype-scan:
-    name: Grype — CVE scan
-    runs-on: ubuntu-latest
+    - name: Update Grype database
+    run: grype db update
     steps:
       - uses: actions/checkout@v4
       - uses: anchore/scan-action@v3
@@ -36,6 +36,7 @@ jobs:
         if: always()
         with:
           sarif_file: results.sarif
+          grype-version: latest  # Force latest version/db
 
   osv-scan:
     name: OSV-Scanner — dependency audit
